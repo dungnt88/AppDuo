@@ -50,13 +50,17 @@ enum RuntimeBuilder {
         }
         return args
     }
-    static func launcher(output: URL, target: String, relative: Bool, env: [String: String], arguments: [String], hook: Bool) throws {
+    /// `libraries` are file names in Contents/Frameworks, inserted into the target with DYLD_INSERT_LIBRARIES.
+    static func launcher(output: URL, target: String, relative: Bool, env: [String: String], arguments: [String], libraries: [String] = []) throws {
         let setenvs = env.sorted(by: { $0.key < $1.key }).map { "setenv(\(literal($0.key)), \(literal($0.value)), 1);" }.joined(separator: "\n")
         let args = arguments.enumerated().map { "args[\($0.offset + 1)] = \(literal($0.element));" }.joined(separator: "\n")
         let targetCode = relative ? "snprintf(target, sizeof(target), \"%s/%s\", dirname(exe), \(literal(target)));" : "snprintf(target, sizeof(target), \"%s\", \(literal(target)));"
+        let inserts = libraries.map { "snprintf(inserted + strlen(inserted), sizeof(inserted) - strlen(inserted), \"%s%s/../Frameworks/%s\", inserted[0] ? \":\" : \"\", dir, \(literal($0)));" }.joined(separator: "\n")
+        let insertCode = libraries.isEmpty ? "" : "char copy[PATH_MAX], inserted[2 * PATH_MAX] = \"\"; snprintf(copy, sizeof(copy), \"%s\", exe); const char *dir = dirname(copy);\n\(inserts)\nsetenv(\"DYLD_INSERT_LIBRARIES\", inserted, 1);"
         try compile("""
         #include <stdlib.h>
         #include <stdio.h>
+        #include <string.h>
         #include <unistd.h>
         #include <limits.h>
         #include <libgen.h>
@@ -65,7 +69,7 @@ enum RuntimeBuilder {
             char exe[PATH_MAX], target[PATH_MAX]; uint32_t n = sizeof(exe);
             if (_NSGetExecutablePath(exe, &n) != 0) return 1;
             \(setenvs)
-            \(hook ? "char hook[PATH_MAX]; char copy[PATH_MAX]; snprintf(copy, sizeof(copy), \"%s\", exe); snprintf(hook, sizeof(hook), \"%s/../Frameworks/libatbclone_hook.dylib\", dirname(copy)); setenv(\"DYLD_INSERT_LIBRARIES\", hook, 1);" : "")
+            \(insertCode)
             \(targetCode)
             char **args = calloc((size_t)argc + \(arguments.count) + 1, sizeof(char *));
             if (!args) return 1; args[0] = target;

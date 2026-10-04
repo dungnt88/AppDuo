@@ -64,6 +64,7 @@ public struct CloneEngine {
             let raw = try Data(contentsOf: main, options: .mappedIfSafe)
             let injected = try? MachO.inject(raw, library: library)
             let needsHook = config.recipe.lark || config.recipe.chatgpt
+            let usesGroups = !(try entitlements(main)["com.apple.security.application-groups"] as? [Any] ?? []).isEmpty
             // Cocoa language is set in preferences; it must not force exec-based launching,
             // which breaks the process identity used by notification services.
             let useDylib = config.injection == .dylib || (config.injection == .auto && config.recipe.arguments.isEmpty && !["chromium", "electron"].contains(config.recipe.appType) && !needsHook && injected != nil)
@@ -74,20 +75,27 @@ public struct CloneEngine {
             }
             try ProcessNames.rename(in: staging, main: main, name: config.name)
             if !useDylib {
+                var libraries: [String] = []
                 if needsHook {
                     try RuntimeBuilder.compile(String(contentsOf: Assets.root.appendingPathComponent("Isolation.m"), encoding: .utf8), output: frameworks.appendingPathComponent("libatbclone_hook.dylib"), library: true, objc: true)
+                    libraries.append("libatbclone_hook.dylib")
+                }
+                // The launcher already sets the environment; this copy only redirects app group containers.
+                if usesGroups {
+                    try RuntimeBuilder.dylib(output: frameworks.appendingPathComponent("libatbclone_env.dylib"), env: [:])
+                    libraries.append("libatbclone_env.dylib")
                 }
                 let launcherName = config.name + "-Launcher"
                 let launcher = macos.appendingPathComponent(launcherName)
                 guard !fm.fileExists(atPath: launcher.path) else { throw CloneFailure.invalid("Tên trình khởi chạy bị trùng") }
-                try RuntimeBuilder.launcher(output: launcher, target: config.name, relative: true, env: env, arguments: args, hook: needsHook)
+                try RuntimeBuilder.launcher(output: launcher, target: config.name, relative: true, env: env, arguments: args, libraries: libraries)
                 var plist = try Plist.read(metadataURL); plist["CFBundleExecutable"] = launcherName; try Plist.write(plist, to: metadataURL)
             }
             try BinaryPatches.apply(in: staging, recipe: config.recipe, log: log)
             try updateHelperIDs(staging, originalID: info.bundleID, newID: config.bundleID)
         } else {
             let launcher = config.name + "-Launcher"
-            try RuntimeBuilder.launcher(output: macos.appendingPathComponent(launcher), target: config.source.appendingPathComponent("Contents/MacOS/" + info.executable).path, relative: false, env: env, arguments: args, hook: false)
+            try RuntimeBuilder.launcher(output: macos.appendingPathComponent(launcher), target: config.source.appendingPathComponent("Contents/MacOS/" + info.executable).path, relative: false, env: env, arguments: args)
             metadata = try Plist.read(metadataURL); metadata["CFBundleExecutable"] = launcher; try Plist.write(metadata, to: metadataURL)
         }
         log("Đang ký lại và xác minh…")
@@ -149,12 +157,9 @@ public struct CloneEngine {
             if aLibrary != bLibrary { return aLibrary }; return a.path.count > b.path.count
         }
         for file in files where MachO.isExecutable(file) || ["dylib", "so"].contains(file.pathExtension) {
-            let entitlements = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".plist")
-            defer { try? fm.removeItem(at: entitlements) }
-            let raw = try Command.run("/usr/bin/codesign", ["-d", "--entitlements", ":-", file.path], acceptFailure: true)
-            var attrs: [String: Any] = [:]
-            if let begin = raw.range(of: "<?xml"), let end = raw.range(of: "</plist>", range: begin.lowerBound..<raw.endIndex),
-               let parsed = try? PropertyListSerialization.propertyList(from: Data(raw[begin.lowerBound..<end.upperBound].utf8), format: nil) as? [String: Any] { attrs = parsed }
+            let plist = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".plist")
+            defer { try? fm.removeItem(at: plist) }
+            var attrs = try entitlements(file)
             // Third-party team/application entitlements cannot be granted by ad-hoc signing.
             for key in Array(attrs.keys) where key.hasPrefix("com.apple.developer.") || key.hasPrefix("com.apple.private.") || ["com.apple.application-identifier", "application-identifier", "keychain-access-groups"].contains(key) { attrs.removeValue(forKey: key) }
             if stripSandbox {
@@ -163,8 +168,8 @@ public struct CloneEngine {
             attrs["com.apple.security.cs.disable-library-validation"] = true
             attrs["com.apple.security.cs.allow-jit"] = true
             attrs["com.apple.security.cs.allow-unsigned-executable-memory"] = true
-            try Plist.write(attrs, to: entitlements)
-            try Command.run("/usr/bin/codesign", ["--force", "--sign", "-", "--entitlements", entitlements.path, file.path])
+            try Plist.write(attrs, to: plist)
+            try Command.run("/usr/bin/codesign", ["--force", "--sign", "-", "--entitlements", plist.path, file.path])
         }
         // Sign nested containers deepest-first, then seal the root bundle.
         if let iterator = fm.enumerator(at: app, includingPropertiesForKeys: [.isSymbolicLinkKey]) {
@@ -172,5 +177,11 @@ public struct CloneEngine {
             for bundle in containers { try Command.run("/usr/bin/codesign", ["--force", "--sign", "-", "--preserve-metadata=entitlements", bundle.path]) }
         }
         try Command.run("/usr/bin/codesign", ["--force", "--sign", "-", "--preserve-metadata=entitlements", app.path])
+    }
+    private func entitlements(_ file: URL) throws -> [String: Any] {
+        let raw = try Command.run("/usr/bin/codesign", ["-d", "--entitlements", ":-", file.path], acceptFailure: true)
+        guard let begin = raw.range(of: "<?xml"), let end = raw.range(of: "</plist>", range: begin.lowerBound..<raw.endIndex),
+              let parsed = try? PropertyListSerialization.propertyList(from: Data(raw[begin.lowerBound..<end.upperBound].utf8), format: nil) as? [String: Any] else { return [:] }
+        return parsed
     }
 }

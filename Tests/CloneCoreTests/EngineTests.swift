@@ -88,7 +88,7 @@ final class EngineTests: XCTestCase {
                 var c = base; c.recipe.strategy = strategy; c.injection = injection
                 if strategy == .hard {
                 let entitlements = root.appendingPathComponent("original-entitlements.plist")
-                try Plist.write(["com.apple.application-identifier": "TEAM.com.atb.test", "com.apple.developer.team-identifier": "TEAM"], to: entitlements)
+                try Plist.write(["com.apple.application-identifier": "TEAM.com.atb.test", "com.apple.developer.team-identifier": "TEAM", "com.apple.security.application-groups": ["TEAM.group"]], to: entitlements)
                 try Command.run("/usr/bin/codesign", ["--force", "--sign", "-", "--entitlements", entitlements.path, c.source.appendingPathComponent("Contents/MacOS/Original").path])
                 }
                 let icon = root.appendingPathComponent("Chosen.icns"); try Data(contentsOf: Assets.icon).write(to: icon); c.customIcon = icon
@@ -110,7 +110,7 @@ final class EngineTests: XCTestCase {
                 let result = try Command.run(c.destination.appendingPathComponent("Contents/MacOS/" + executable).path, [])
                 XCTAssertTrue(result.contains("quote' slash\\ $value\n中文"), result)
                 XCTAssertTrue(result.contains(strategy == .hard ? "/WeWork\n" : "/Original\n"), result)
-                if injection == .dylib {
+                if strategy == .hard {
                     XCTAssertTrue(result.contains(c.dataDirectory.appendingPathComponent("Home/Library/Group Containers/TEAM.group").path + "\n"), result)
                 }
                 XCTAssertEqual(try Data(contentsOf: c.source.appendingPathComponent("Contents/MacOS/Original")), sourceBytes)

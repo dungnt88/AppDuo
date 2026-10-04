@@ -1,5 +1,5 @@
 bundle_id: com.netease.163music
-app_name: 网易云音乐
+app_name: NetEase Cloud Music
 strategy: hard_clone
 app_type: chromium
 strip_sandbox: true

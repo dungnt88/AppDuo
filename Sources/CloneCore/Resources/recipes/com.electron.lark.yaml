@@ -1,5 +1,5 @@
 bundle_id: com.electron.lark
-app_name: 飞书
+app_name: Feishu
 strategy: hard_clone
 app_type: electron
 strip_sandbox: true

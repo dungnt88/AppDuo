@@ -39,6 +39,8 @@ cat > "$app/Contents/Info.plist" <<PLIST
 <key>CFBundleIdentifier</key><string>com.atbclone.swift</string>
 <key>CFBundleName</key><string>AppDuo</string>
 <key>CFBundleDisplayName</key><string>AppDuo</string>
+<key>CFBundleDevelopmentRegion</key><string>vi</string>
+<key>CFBundleLocalizations</key><array><string>vi</string></array>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>$version</string>
 <key>CFBundleVersion</key><string>$version</string>

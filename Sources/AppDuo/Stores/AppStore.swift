@@ -41,7 +41,7 @@ import CloneCore
     }
     func build(_ config: CloneConfiguration, password: String, updating: Bool) async -> Bool {
         guard !busy else { return false }
-        if updating && isRunning(config) { error = "请先退出该分身，再修改或更新。"; return false }
+        if updating && isRunning(config) { error = "Hãy thoát bản sao này trước khi sửa hoặc cập nhật."; return false }
         busy = true; defer { busy = false }
         do {
             records = try await repository.build(config, password: password, updating: updating) { [weak self] line in
@@ -49,14 +49,14 @@ import CloneCore
             }
             await checkUpdates()
             return true
-        } catch { self.error = error.localizedDescription; addLog("失败：\(error.localizedDescription)"); return false }
+        } catch { self.error = error.localizedDescription; addLog("Thất bại: \(error.localizedDescription)"); return false }
     }
     func update(_ record: CloneRecord) async {
         do { _ = await build(record.configuration, password: try Secrets.read(record.id), updating: true) }
         catch { self.error = error.localizedDescription }
     }
     func remove(_ record: CloneRecord, withData: Bool) async {
-        if isRunning(record.configuration) { error = "请先退出该分身。"; return }
+        if isRunning(record.configuration) { error = "Hãy thoát bản sao này trước."; return }
         busy = true; defer { busy = false }
         do { records = try await repository.remove(record.id, withData: withData); availableUpdates.removeValue(forKey: record.id) }
         catch { self.error = error.localizedDescription }
@@ -76,7 +76,7 @@ import CloneCore
         NSWorkspace.shared.openApplication(at: destination, configuration: config) { app, error in
             Task { @MainActor in
                 if let error { self.error = error.localizedDescription }
-                else if !Inspector.sameApplication(app?.bundleURL, as: destination) { self.error = "系统未打开指定的分身，请检查分身应用是否完整。" }
+                else if !Inspector.sameApplication(app?.bundleURL, as: destination) { self.error = "Hệ thống không mở được bản sao này, hãy kiểm tra xem ứng dụng bản sao còn nguyên vẹn không." }
             }
         }
     }

@@ -33,7 +33,7 @@ enum BinaryPatches {
                     }
                 }
                 if count > 0 { try data.write(to: file) }
-                log("CEF 兼容补丁：匹配 \(count)/4；不同版本需实际启动验证")
+                log("Bản vá tương thích CEF: khớp \(count)/4; phiên bản khác cần chạy thử để xác nhận")
             }
             if recipe.singleton {
                 let attributes = try file.resourceValues(forKeys: [.fileSizeKey])
@@ -65,7 +65,7 @@ enum BinaryPatches {
                         guard target >= 0, target <= data.count - 8 else { continue }
                         MachO.put(0x52800000, in: &data, at: target); MachO.put(0xd65f03c0, in: &data, at: target + 4)
                         MachO.put(0x52800000, in: &data, at: i); MachO.put(0xd503201f, in: &data, at: i + 4)
-                        try data.write(to: file); log("已应用单实例兼容补丁：\(file.lastPathComponent)"); break
+                        try data.write(to: file); log("Đã vá giới hạn chạy một phiên bản: \(file.lastPathComponent)"); break
                     }
                 }
             }

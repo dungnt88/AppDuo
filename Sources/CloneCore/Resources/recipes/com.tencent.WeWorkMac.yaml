@@ -1,5 +1,5 @@
 bundle_id: com.tencent.WeWorkMac
-app_name: 企业微信
+app_name: WeCom
 strategy: hard_clone
 app_type: chromium
 strip_sandbox: true

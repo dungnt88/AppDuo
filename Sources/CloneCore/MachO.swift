@@ -3,7 +3,7 @@ import Foundation
 /// Bounds-checked Mach-O reads; malformed or unsupported binaries are never patched.
 public enum MachO {
     static func integer(_ data: Data, _ offset: Int, _ count: Int = 4, big: Bool = false) throws -> UInt64 {
-        guard offset >= 0, count <= 8, offset <= data.count - count else { throw CloneFailure.invalid("Mach-O 数据越界") }
+        guard offset >= 0, count <= 8, offset <= data.count - count else { throw CloneFailure.invalid("Dữ liệu Mach-O vượt giới hạn") }
         var result: UInt64 = 0
         for i in 0..<count { result |= UInt64(data[offset + i]) << (8 * (big ? count - i - 1 : i)) }; return result
     }
@@ -14,12 +14,12 @@ public enum MachO {
         let magic = try integer(data, 0, big: true)
         if magic == 0xcafebabe || magic == 0xcafebabf {
             let wide = magic == 0xcafebabf, n = Int(try integer(data, 4, big: true)), stride = wide ? 32 : 20
-            guard n > 0, n <= 32 else { throw CloneFailure.invalid("无效的通用二进制架构数") }
+            guard n > 0, n <= 32 else { throw CloneFailure.invalid("Số kiến trúc của universal binary không hợp lệ") }
             return try (0..<n).map { i in
                 let p = 8 + i * stride
                 let offset = try integer(data, p + 8, wide ? 8 : 4, big: true)
                 let size = try integer(data, p + (wide ? 16 : 12), wide ? 8 : 4, big: true)
-                guard offset <= data.count, size <= data.count - Int(offset) else { throw CloneFailure.invalid("无效的 Mach-O slice") }
+                guard offset <= data.count, size <= data.count - Int(offset) else { throw CloneFailure.invalid("Mach-O slice không hợp lệ") }
                 return (Int(offset), Int(size))
             }
         }
@@ -49,14 +49,14 @@ public enum MachO {
         var data = original
         let path = Array(library.utf8) + [0], length = 24 + ((path.count + 7) & ~7)
         for (offset, size) in try slices(data) {
-            guard try integer(data, offset) == 0xfeedfacf, try integer(data, offset + 12) == 2 else { throw CloneFailure.invalid("注入仅支持 64 位 Mach-O 可执行文件") }
+            guard try integer(data, offset) == 0xfeedfacf, try integer(data, offset + 12) == 2 else { throw CloneFailure.invalid("Chỉ chèn được vào tệp thực thi Mach-O 64-bit") }
             let commands = Int(try integer(data, offset + 16)), bytes = Int(try integer(data, offset + 20))
-            guard bytes <= size - 32, commands <= bytes / 8 else { throw CloneFailure.invalid("无效的 Mach-O load commands") }
+            guard bytes <= size - 32, commands <= bytes / 8 else { throw CloneFailure.invalid("Mach-O load commands không hợp lệ") }
             var p = offset + 32, first = size, alreadyLoaded = false
             let end = offset + 32 + bytes
             for _ in 0..<commands {
                 let cmd = try integer(data, p), len = Int(try integer(data, p + 4))
-                guard len >= 8, p <= end - len else { throw CloneFailure.invalid("Mach-O load command 越界") }
+                guard len >= 8, p <= end - len else { throw CloneFailure.invalid("Mach-O load command vượt giới hạn") }
                 if cmd == 0xc, len >= 24 {
                     let strOffset = Int(try integer(data, p + 8))
                     if strOffset >= 24, strOffset < len {
@@ -65,8 +65,8 @@ public enum MachO {
                     }
                 }
                 if cmd == 0x19 {
-                    guard len >= 72 else { throw CloneFailure.invalid("无效的 segment") }
-                    let count = Int(try integer(data, p + 64)); guard count <= (len - 72) / 80 else { throw CloneFailure.invalid("无效的 section") }
+                    guard len >= 72 else { throw CloneFailure.invalid("Segment không hợp lệ") }
+                    let count = Int(try integer(data, p + 64)); guard count <= (len - 72) / 80 else { throw CloneFailure.invalid("Section không hợp lệ") }
                     for s in 0..<count {
                         let section = p + 72 + s * 80
                         let start = Int(try integer(data, section + 48)), n = try integer(data, section + 40, 8)
@@ -77,7 +77,7 @@ public enum MachO {
             }
             if alreadyLoaded { continue }
             guard p == end, first <= size, first - (32 + bytes) >= length,
-                  data[end..<(end + length)].allSatisfy({ $0 == 0 }) else { throw CloneFailure.invalid("Mach-O 头部空间不足，改用启动器方案") }
+                  data[end..<(end + length)].allSatisfy({ $0 == 0 }) else { throw CloneFailure.invalid("Header Mach-O không đủ chỗ, chuyển sang dùng trình khởi chạy") }
             put(0xc, in: &data, at: end); put(UInt64(length), in: &data, at: end + 4); put(24, in: &data, at: end + 8)
             data.replaceSubrange((end + 24)..<(end + 24 + path.count), with: path)
             put(UInt64(commands + 1), in: &data, at: offset + 16); put(UInt64(bytes + length), in: &data, at: offset + 20)
@@ -99,9 +99,9 @@ public enum ProcessNames {
             }
         }
         let targets = Set(moves.values)
-        guard targets.count == moves.count else { throw CloneFailure.invalid("进程名冲突") }
+        guard targets.count == moves.count else { throw CloneFailure.invalid("Tên tiến trình bị trùng") }
         for target in targets {
-            if (try? target.resourceValues(forKeys: [.isSymbolicLinkKey])) != nil { throw CloneFailure.invalid("进程名与已有文件冲突：\(target.lastPathComponent)") }
+            if (try? target.resourceValues(forKeys: [.isSymbolicLinkKey])) != nil { throw CloneFailure.invalid("Tên tiến trình trùng với tệp có sẵn: \(target.lastPathComponent)") }
         }
         var updates: [(URL, [String: Any])] = []
         for plist in plists {
@@ -118,7 +118,7 @@ public enum ProcessNames {
 }
 func bundleFiles(_ app: URL) throws -> [URL] {
     var failure: Error?
-    guard let iterator = FileManager.default.enumerator(at: app, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey], errorHandler: { _, error in failure = error; return false }) else { throw CloneFailure.invalid("无法遍历应用") }
+    guard let iterator = FileManager.default.enumerator(at: app, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey], errorHandler: { _, error in failure = error; return false }) else { throw CloneFailure.invalid("Không duyệt được nội dung ứng dụng") }
     var files: [URL] = []
     for case let url as URL in iterator {
         let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])

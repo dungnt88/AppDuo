@@ -17,7 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         WindowGroup("AppDuo", id: "main") { ContentView(store: store).frame(minWidth: 700, minHeight: 520) }
             .defaultSize(width: 820, height: 600)
             .commands {
-                CommandGroup(after: .newItem) { Button("新建分身…") { store.editing = nil; store.showingWizard = true }.keyboardShortcut("n").disabled(store.busy) }
+                CommandGroup(after: .newItem) { Button("Tạo bản sao mới…") { store.editing = nil; store.showingWizard = true }.keyboardShortcut("n").disabled(store.busy) }
             }
         Settings { SettingsView(root: store.root) }
     }

@@ -4,7 +4,7 @@ import Yams
 public enum Recipes {
     public static func decode(_ yaml: String) throws -> Recipe {
         guard let d = try Yams.load(yaml: yaml) as? [String: Any], let id = d["bundle_id"] as? String,
-              let name = d["app_name"] as? String, let raw = d["strategy"] as? String, let strategy = Strategy(rawValue: raw) else { throw CloneFailure.invalid("规则缺少 bundle_id、app_name 或 strategy") }
+              let name = d["app_name"] as? String, let raw = d["strategy"] as? String, let strategy = Strategy(rawValue: raw) else { throw CloneFailure.invalid("Quy tắc thiếu bundle_id, app_name hoặc strategy") }
         var r = Recipe(bundleID: id, appName: name, strategy: strategy)
         r.stripSandbox = d["strip_sandbox"] as? Bool ?? false
         r.environment = d["environment_injection"] as? [String: String] ?? [:]

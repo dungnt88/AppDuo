@@ -20,12 +20,12 @@ final class EngineTests: XCTestCase {
         do {
             _ = try await repository.build(duplicate, password: "", updating: false, log: { _ in })
             XCTFail("Equivalent destination must be rejected")
-        } catch { XCTAssertEqual(error.localizedDescription, "分身名称或位置已存在") }
+        } catch { XCTAssertEqual(error.localizedDescription, "Tên hoặc vị trí bản sao đã tồn tại") }
         edited.destination = root.appendingPathComponent("Different.app")
         do {
             _ = try await repository.build(edited, password: "", updating: true, log: { _ in })
             XCTFail("A genuinely different destination must be rejected")
-        } catch { XCTAssertEqual(error.localizedDescription, "找不到待更新分身") }
+        } catch { XCTAssertEqual(error.localizedDescription, "Không tìm thấy bản sao cần cập nhật") }
     }
     func testSourceUpdateDetectionAndUpgrade() throws {
         let (root, config) = try fixture()

@@ -1,5 +1,5 @@
 bundle_id: com.tencent.xinWeChat
-app_name: 微信
+app_name: WeChat
 strategy: hard_clone
 app_type: cocoa
 strip_sandbox: true

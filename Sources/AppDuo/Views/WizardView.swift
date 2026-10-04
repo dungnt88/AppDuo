@@ -22,7 +22,7 @@ struct WizardView: View {
     @State private var injection: Injection = .auto
     @State private var issue: String?
     @State private var submitting = false
-    private let stages = ["选择应用", "克隆方式", "名称与图标", "网络与存储", "确认创建"]
+    private let stages = ["Chọn ứng dụng", "Cách nhân bản", "Tên và biểu tượng", "Mạng và lưu trữ", "Xác nhận"]
     private var windowHeight: CGFloat {
         switch step {
         case 0: return info == nil ? 320 : 420
@@ -35,7 +35,7 @@ struct WizardView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                VStack(alignment: .leading, spacing: 6) { Text(record == nil ? "新建应用分身" : "修改分身").font(.title2.bold()); Text("\(step + 1) / 5  ·  \(stages[step])").foregroundStyle(.secondary) }
+                VStack(alignment: .leading, spacing: 6) { Text(record == nil ? "Tạo bản sao ứng dụng" : "Sửa bản sao").font(.title2.bold()); Text("\(step + 1) / 5  ·  \(stages[step])").foregroundStyle(.secondary) }
                 Spacer()
                 Button { dismiss() } label: { Image(systemName: "xmark.circle.fill").font(.title2).foregroundStyle(.secondary) }.buttonStyle(.plain).disabled(submitting)
             }.padding(24)
@@ -53,10 +53,10 @@ struct WizardView: View {
             if submitting { HStack { ProgressView().controlSize(.small); Text(store.progress).font(.callout) }.padding() }
             Divider()
             HStack {
-                Button("取消") { dismiss() }.disabled(submitting)
+                Button("Huỷ") { dismiss() }.disabled(submitting)
                 Spacer()
-                if step > (record == nil ? 0 : 2) { Button("上一步") { step -= 1 }.disabled(submitting) }
-                Button(step == 4 ? (record == nil ? "创建分身" : "保存并更新") : "下一步") { advance() }
+                if step > (record == nil ? 0 : 2) { Button("Quay lại") { step -= 1 }.disabled(submitting) }
+                Button(step == 4 ? (record == nil ? "Tạo bản sao" : "Lưu và cập nhật") : "Tiếp tục") { advance() }
                     .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction).disabled(submitting || (step == 0 && info == nil))
             }.padding(20)
         }.frame(width: 600, height: windowHeight).interactiveDismissDisabled(submitting).onAppear { restore() }
@@ -64,79 +64,79 @@ struct WizardView: View {
     private var sourceForm: some View {
         Section {
             HStack(spacing: 18) {
-                Image(nsImage: source.map { NSWorkspace.shared.icon(forFile: $0.path) } ?? NSImage(systemSymbolName: "app.dashed", accessibilityDescription: "选择应用")!).resizable().frame(width: 70, height: 70)
-                VStack(alignment: .leading, spacing: 8) { Text(info?.name ?? "选择要分身的应用").font(.title3.bold()); Text(source?.path ?? "支持 macOS .app 应用").font(.caption).foregroundStyle(.secondary).lineLimit(2) }
+                Image(nsImage: source.map { NSWorkspace.shared.icon(forFile: $0.path) } ?? NSImage(systemSymbolName: "app.dashed", accessibilityDescription: "Chọn ứng dụng")!).resizable().frame(width: 70, height: 70)
+                VStack(alignment: .leading, spacing: 8) { Text(info?.name ?? "Chọn ứng dụng cần nhân bản").font(.title3.bold()); Text(source?.path ?? "Hỗ trợ ứng dụng macOS dạng .app").font(.caption).foregroundStyle(.secondary).lineLimit(2) }
                 Spacer()
-                Button("选择…") { selectSource() }
+                Button("Chọn…") { selectSource() }
             }.padding(.vertical, 12)
-            if let info { LabeledContent("Bundle ID", value: info.bundleID); LabeledContent("版本", value: info.version); LabeledContent("检测类型", value: info.type) }
+            if let info { LabeledContent("Bundle ID", value: info.bundleID); LabeledContent("Phiên bản", value: info.version); LabeledContent("Loại nhận diện", value: info.type) }
         }
     }
     private var strategyForm: some View {
-        Section("已匹配规则：\(recipe?.appName ?? "自动探测")") {
-            Picker("克隆方式", selection: Binding(get: { recipe?.strategy ?? .hard }, set: { recipe?.strategy = $0 })) { ForEach(Strategy.allCases, id: \.self) { Text($0.label).tag($0) } }
-            Text("硬分身复制完整应用，可自定义主进程及辅助进程名称。软分身使用原应用程序，适合支持独立配置目录的应用。").font(.callout).foregroundStyle(.secondary)
-            Picker("环境注入", selection: $injection) { Text("自动选择").tag(Injection.auto); Text("进程内动态库").tag(Injection.dylib); Text("原生启动器").tag(Injection.launcher) }.disabled(recipe?.strategy == .soft)
-            Toggle("移除应用沙盒限制", isOn: Binding(get: { recipe?.stripSandbox ?? false }, set: { recipe?.stripSandbox = $0 }))
+        Section("Quy tắc khớp: \(recipe?.appName ?? "Tự động nhận diện")") {
+            Picker("Cách nhân bản", selection: Binding(get: { recipe?.strategy ?? .hard }, set: { recipe?.strategy = $0 })) { ForEach(Strategy.allCases, id: \.self) { Text($0.label).tag($0) } }
+            Text("Bản sao cứng chép toàn bộ ứng dụng, đặt được tên riêng cho tiến trình chính và tiến trình phụ. Bản sao mềm chạy thẳng ứng dụng gốc, hợp với ứng dụng hỗ trợ thư mục cấu hình riêng.").font(.callout).foregroundStyle(.secondary)
+            Picker("Cách chèn môi trường", selection: $injection) { Text("Tự động chọn").tag(Injection.auto); Text("Thư viện động trong tiến trình").tag(Injection.dylib); Text("Trình khởi chạy gốc").tag(Injection.launcher) }.disabled(recipe?.strategy == .soft)
+            Toggle("Gỡ giới hạn sandbox của ứng dụng", isOn: Binding(get: { recipe?.stripSandbox ?? false }, set: { recipe?.stripSandbox = $0 }))
         }
     }
     private var identityForm: some View {
         Group {
-            Section("分身身份") {
-                TextField("分身名称 / 进程名", text: $name).disabled(record != nil)
-                TextField("显示名称", text: $displayName)
-                Picker("应用界面语言", selection: $language) { ForEach(supportedLanguages, id: \.self) { Text($0 == "system" ? "跟随系统" : Locale.current.localizedString(forLanguageCode: $0) ?? $0).tag($0) } }
+            Section("Danh tính bản sao") {
+                TextField("Tên bản sao / tên tiến trình", text: $name).disabled(record != nil)
+                TextField("Tên hiển thị", text: $displayName)
+                Picker("Ngôn ngữ giao diện", selection: $language) { ForEach(supportedLanguages, id: \.self) { Text($0 == "system" ? "Theo hệ thống" : Locale(identifier: "vi").localizedString(forIdentifier: $0) ?? $0).tag($0) } }
             }
-            Section("应用图标") {
+            Section("Biểu tượng ứng dụng") {
                 HStack(spacing: 18) {
                     Image(nsImage: previewIcon).resizable().frame(width: 76, height: 76)
                     VStack(alignment: .leading, spacing: 10) {
-                        Text(icon?.lastPathComponent ?? (record == nil ? "使用原应用图标" : "保留当前图标")).font(.callout)
-                        HStack { Button("选择 .icns…") { chooseIcon() }; Button("恢复当前默认") { icon = nil } }
+                        Text(icon?.lastPathComponent ?? (record == nil ? "Dùng biểu tượng của ứng dụng gốc" : "Giữ biểu tượng hiện tại")).font(.callout)
+                        HStack { Button("Chọn .icns…") { chooseIcon() }; Button("Khôi phục mặc định") { icon = nil } }
                     }
                 }.padding(.vertical, 8)
-                Text("图标会复制进分身；之后修改设置或更新时自动保留。").font(.caption).foregroundStyle(.secondary)
+                Text("Biểu tượng được chép vào bản sao và tự giữ lại khi sửa cài đặt hoặc cập nhật.").font(.caption).foregroundStyle(.secondary)
             }
         }
     }
     private var networkForm: some View {
         Group {
-            Section("独立网络") {
-                Toggle("启用代理", isOn: $proxy.enabled)
+            Section("Mạng riêng") {
+                Toggle("Bật proxy", isOn: $proxy.enabled)
                 if proxy.enabled {
-                    Picker("类型", selection: $proxy.type) { ForEach(["http", "https", "socks5"], id: \.self) { Text($0.uppercased()).tag($0) } }
-                    TextField("服务器", text: $proxy.host)
-                    TextField("端口", value: $proxy.port, format: .number.grouping(.never))
-                    TextField("用户名（可选）", text: $proxy.username)
-                    SecureField("密码（保存到钥匙串）", text: $password)
-                    TextField("绕过代理", text: $proxy.noProxy)
-                    Text("应用必须支持代理环境变量；最终连接是否走代理需在客户端中验证。").font(.caption).foregroundStyle(.secondary)
+                    Picker("Loại", selection: $proxy.type) { ForEach(["http", "https", "socks5"], id: \.self) { Text($0.uppercased()).tag($0) } }
+                    TextField("Máy chủ", text: $proxy.host)
+                    TextField("Cổng", value: $proxy.port, format: .number.grouping(.never))
+                    TextField("Tên đăng nhập (tuỳ chọn)", text: $proxy.username)
+                    SecureField("Mật khẩu (lưu vào Keychain)", text: $password)
+                    TextField("Không qua proxy", text: $proxy.noProxy)
+                    Text("Ứng dụng phải hỗ trợ biến môi trường proxy; hãy kiểm tra trong ứng dụng proxy xem kết nối có thực sự đi qua proxy không.").font(.caption).foregroundStyle(.secondary)
                 }
             }
-            Section("存储位置") {
-                TextField("分身应用", text: $destination).disabled(record != nil)
-                TextField("独立数据", text: $dataDirectory).disabled(record != nil)
-                Text("默认保存到用户目录，无需管理员权限。更新保留数据。").font(.caption).foregroundStyle(.secondary)
+            Section("Vị trí lưu trữ") {
+                TextField("Ứng dụng bản sao", text: $destination).disabled(record != nil)
+                TextField("Dữ liệu riêng", text: $dataDirectory).disabled(record != nil)
+                Text("Mặc định lưu trong thư mục người dùng, không cần quyền quản trị. Cập nhật vẫn giữ dữ liệu.").font(.caption).foregroundStyle(.secondary)
             }
         }
     }
     private var summaryForm: some View {
-        Section("即将\(record == nil ? "创建" : "更新")") {
-            LabeledContent("应用", value: info?.name ?? recipe?.appName ?? "")
-            LabeledContent("分身", value: name)
-            LabeledContent("方式", value: recipe?.strategy.label ?? "")
-            LabeledContent("语言", value: language)
-            LabeledContent("网络", value: proxy.enabled ? "\(proxy.type)://\(proxy.host):\(proxy.port)" : "系统网络")
+        Section("Sắp \(record == nil ? "tạo" : "cập nhật")") {
+            LabeledContent("Ứng dụng", value: info?.name ?? recipe?.appName ?? "")
+            LabeledContent("Bản sao", value: name)
+            LabeledContent("Cách nhân bản", value: recipe?.strategy.label ?? "")
+            LabeledContent("Ngôn ngữ", value: language)
+            LabeledContent("Mạng", value: proxy.enabled ? "\(proxy.type)://\(proxy.host):\(proxy.port)" : "Mạng hệ thống")
             Text(destination).font(.caption).textSelection(.enabled)
             if recipe?.strategy == .hard {
-                Text("主进程：\(name)\n辅助进程：\(name)-原名称").font(.system(.callout, design: .monospaced))
+                Text("Tiến trình chính: \(name)\nTiến trình phụ: \(name)-<tên gốc>").font(.system(.callout, design: .monospaced))
             }
         }
     }
     private var previewIcon: NSImage {
         if let icon, let image = NSImage(contentsOf: icon) { return image }
         if let url = record?.configuration.destination ?? source { return NSWorkspace.shared.icon(forFile: url.path) }
-        return NSImage(systemSymbolName: "app", accessibilityDescription: "应用图标")!
+        return NSImage(systemSymbolName: "app", accessibilityDescription: "Biểu tượng ứng dụng")!
     }
     private func selectSource() {
         let panel = NSOpenPanel(); panel.allowedContentTypes = [.applicationBundle]; panel.canChooseDirectories = false
@@ -154,7 +154,7 @@ struct WizardView: View {
         if panel.runModal() == .OK { icon = panel.url }
     }
     private func configuration() throws -> CloneConfiguration {
-        guard let source, let recipe else { throw CloneFailure.invalid("请选择应用") }
+        guard let source, let recipe else { throw CloneFailure.invalid("Hãy chọn ứng dụng") }
         var c = record?.configuration ?? CloneConfiguration(source: source, name: name, destination: URL(fileURLWithPath: destination), dataDirectory: URL(fileURLWithPath: dataDirectory), recipe: recipe)
         c.name = name; c.displayName = displayName.isEmpty ? name : displayName; c.recipe = recipe
         c.destination = URL(fileURLWithPath: NSString(string: destination).expandingTildeInPath)

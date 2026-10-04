@@ -7,16 +7,16 @@ public struct CloneEngine {
     public func build(_ config: CloneConfiguration, password: String = "", updating: Bool = false, log: (String) -> Void = { _ in }) throws -> CloneRecord {
         try config.validate()
         let fm = FileManager.default, info = try Inspector.inspect(config.source)
-        guard info.bundleID == config.recipe.bundleID else { throw CloneFailure.invalid("所选规则与原应用 Bundle ID 不一致") }
+        guard info.bundleID == config.recipe.bundleID else { throw CloneFailure.invalid("Quy tắc đã chọn không khớp với Bundle ID của ứng dụng gốc") }
         let destination = config.destination
         if updating && NSWorkspace.shared.runningApplications.contains(where: { $0.bundleURL?.standardizedFileURL.path == destination.standardizedFileURL.path || $0.bundleIdentifier == config.bundleID }) {
-            throw CloneFailure.invalid("请先退出分身，再执行更新")
+            throw CloneFailure.invalid("Hãy thoát bản sao trước khi cập nhật")
         }
-        guard updating || !fm.fileExists(atPath: destination.path) else { throw CloneFailure.invalid("目标应用已存在，请使用更新操作") }
+        guard updating || !fm.fileExists(atPath: destination.path) else { throw CloneFailure.invalid("Ứng dụng đích đã tồn tại, hãy dùng chức năng cập nhật") }
         try fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
         let staging = destination.deletingLastPathComponent().appendingPathComponent(".atb-\(UUID().uuidString).app")
         defer { try? fm.removeItem(at: staging) }
-        log("复制应用与资源…")
+        log("Đang chép ứng dụng và tài nguyên…")
         let macos = staging.appendingPathComponent("Contents/MacOS"), resources = staging.appendingPathComponent("Contents/Resources")
         if config.recipe.strategy == .hard {
             try Command.run("/bin/cp", ["-cR", config.source.path, staging.path])
@@ -41,7 +41,7 @@ public struct CloneEngine {
         let icon = config.customIcon ?? (updating && fm.fileExists(atPath: installedIcon.path) ? installedIcon : nil)
         if let icon {
             let bytes = try Data(contentsOf: icon)
-            guard bytes.count >= 8, bytes.prefix(4) == Data("icns".utf8) else { throw CloneFailure.invalid("请选择有效的 .icns 图标") }
+            guard bytes.count >= 8, bytes.prefix(4) == Data("icns".utf8) else { throw CloneFailure.invalid("Hãy chọn tệp biểu tượng .icns hợp lệ") }
             try bytes.write(to: resources.appendingPathComponent("ATBCloneIcon.icns"), options: .atomic)
             metadata["CFBundleIconFile"] = "ATBCloneIcon.icns"; metadata.removeValue(forKey: "CFBundleIconName")
         }
@@ -55,7 +55,7 @@ public struct CloneEngine {
         let env = try RuntimeBuilder.environment(config, password: password)
         try prepareData(config, env: env)
         let args = RuntimeBuilder.arguments(config)
-        log("配置独立数据、语言和进程名称…")
+        log("Đang cấu hình dữ liệu riêng, ngôn ngữ và tên tiến trình…")
         if config.recipe.strategy == .hard {
             let main = macos.appendingPathComponent(info.executable)
             let frameworks = staging.appendingPathComponent("Contents/Frameworks")
@@ -68,7 +68,7 @@ public struct CloneEngine {
             // which breaks the process identity used by notification services.
             let useDylib = config.injection == .dylib || (config.injection == .auto && config.recipe.arguments.isEmpty && !["chromium", "electron"].contains(config.recipe.appType) && !needsHook && injected != nil)
             if useDylib {
-                guard !needsHook, let injected else { throw CloneFailure.invalid("此应用无法安全使用 dylib 注入，请选择自动或启动器") }
+                guard !needsHook, let injected else { throw CloneFailure.invalid("Ứng dụng này không thể chèn dylib an toàn, hãy chọn Tự động chọn hoặc Trình khởi chạy gốc") }
                 try RuntimeBuilder.dylib(output: frameworks.appendingPathComponent("libatbclone_env.dylib"), env: env)
                 try injected.write(to: main)
             }
@@ -79,7 +79,7 @@ public struct CloneEngine {
                 }
                 let launcherName = config.name + "-Launcher"
                 let launcher = macos.appendingPathComponent(launcherName)
-                guard !fm.fileExists(atPath: launcher.path) else { throw CloneFailure.invalid("启动器名称冲突") }
+                guard !fm.fileExists(atPath: launcher.path) else { throw CloneFailure.invalid("Tên trình khởi chạy bị trùng") }
                 try RuntimeBuilder.launcher(output: launcher, target: config.name, relative: true, env: env, arguments: args, hook: needsHook)
                 var plist = try Plist.read(metadataURL); plist["CFBundleExecutable"] = launcherName; try Plist.write(plist, to: metadataURL)
             }
@@ -90,11 +90,11 @@ public struct CloneEngine {
             try RuntimeBuilder.launcher(output: macos.appendingPathComponent(launcher), target: config.source.appendingPathComponent("Contents/MacOS/" + info.executable).path, relative: false, env: env, arguments: args, hook: false)
             metadata = try Plist.read(metadataURL); metadata["CFBundleExecutable"] = launcher; try Plist.write(metadata, to: metadataURL)
         }
-        log("重新签名并验证…")
+        log("Đang ký lại và xác minh…")
         try Command.run("/usr/bin/xattr", ["-cr", staging.path])
         try sign(staging, stripSandbox: config.recipe.stripSandbox)
         try Command.run("/usr/bin/codesign", ["--verify", "--deep", "--strict", staging.path])
-        log("安装已验证的分身…")
+        log("Đang cài bản sao đã xác minh…")
         let backup = destination.deletingLastPathComponent().appendingPathComponent(".atb-backup-\(UUID().uuidString).app")
         let hadOld = fm.fileExists(atPath: destination.path)
         if hadOld { try fm.moveItem(at: destination, to: backup) }
@@ -103,7 +103,7 @@ public struct CloneEngine {
         if hadOld { try fm.removeItem(at: backup) }
         _ = try? Command.run("/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister", ["-f", destination.path])
         var stored = config; stored.customIcon = nil
-        log("完成：\(config.name)")
+        log("Xong: \(config.name)")
         return CloneRecord(configuration: stored)
     }
     private func prepareData(_ config: CloneConfiguration, env: [String: String]) throws {

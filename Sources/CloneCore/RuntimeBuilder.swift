@@ -77,6 +77,24 @@ enum RuntimeBuilder {
     }
     static func dylib(output: URL, env: [String: String]) throws {
         let lines = env.sorted(by: { $0.key < $1.key }).map { "setenv(\(literal($0.key)), \(literal($0.value)), 1);" }.joined(separator: "\n")
-        try compile("#include <stdlib.h>\n__attribute__((constructor)) static void initialize(void) {\n\(lines)\n}\n", output: output, library: true)
+        // App group containers belong to the original team: macOS denies them to an ad-hoc clone, and sharing would mix accounts.
+        try compile("""
+        #import <Foundation/Foundation.h>
+        #import <objc/runtime.h>
+        static IMP original;
+        static NSURL *groupContainer(id self, SEL cmd, NSString *group) {
+            const char *home = getenv("HOME");
+            NSString *base = home && home[0] ? [NSString stringWithUTF8String:home] : nil;
+            if (!base || !group.length) return ((NSURL *(*)(id, SEL, NSString *))original)(self, cmd, group);
+            NSString *path = [base stringByAppendingPathComponent:[@"Library/Group Containers" stringByAppendingPathComponent:group]];
+            [NSFileManager.defaultManager createDirectoryAtPath:path withIntermediateDirectories:YES attributes:nil error:nil];
+            return [NSURL fileURLWithPath:path isDirectory:YES];
+        }
+        __attribute__((constructor)) static void initialize(void) {
+        \(lines)
+            Method method = class_getInstanceMethod(NSFileManager.class, @selector(containerURLForSecurityApplicationGroupIdentifier:));
+            if (method) original = method_setImplementation(method, (IMP)groupContainer);
+        }
+        """, output: output, library: true, objc: true)
     }
 }

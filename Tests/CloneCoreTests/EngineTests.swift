@@ -60,20 +60,20 @@ final class EngineTests: XCTestCase {
         let source = root.appendingPathComponent("Original.app")
         let mac = source.appendingPathComponent("Contents/MacOS")
         try FileManager.default.createDirectory(at: mac, withIntermediateDirectories: true)
-        let code = root.appendingPathComponent("test.c")
+        let code = root.appendingPathComponent("test.m")
         try """
+        #import <Foundation/Foundation.h>
         #include <libproc.h>
-        #include <stdio.h>
-        #include <stdlib.h>
-        #include <unistd.h>
         int main(int argc, char **argv) {
           char path[4096]; proc_pidpath(getpid(), path, sizeof(path));
           printf("%s\\n%s\\n", path, getenv("ATB_TEST") ?: "missing");
           for (int i = 1; i < argc; ++i) puts(argv[i]);
+          NSString *group = [NSFileManager.defaultManager containerURLForSecurityApplicationGroupIdentifier:@"TEAM.group"].path;
+          puts(group ? group.UTF8String : "no group");
           return 0;
         }
         """.write(to: code, atomically: true, encoding: .utf8)
-        try Command.run("/usr/bin/xcrun", ["clang", "-Wl,-headerpad,0x1000", code.path, "-o", mac.appendingPathComponent("Original").path])
+        try Command.run("/usr/bin/xcrun", ["clang", "-framework", "Foundation", "-Wl,-headerpad,0x1000", code.path, "-o", mac.appendingPathComponent("Original").path])
         try Plist.write(["CFBundleIdentifier": "com.atb.test", "CFBundleExecutable": "Original", "CFBundlePackageType": "APPL", "CFBundleIconName": "AppIcon"], to: source.appendingPathComponent("Contents/Info.plist"))
         var recipe = Recipe(bundleID: "com.atb.test", appName: "Original")
         recipe.environment = ["ATB_TEST": "quote' slash\\ $value\n中文", "HOME": "{{ATB_DATA_DIR}}/Home", "TMPDIR": "{{ATB_DATA_DIR}}/Tmp"]
@@ -110,6 +110,9 @@ final class EngineTests: XCTestCase {
                 let result = try Command.run(c.destination.appendingPathComponent("Contents/MacOS/" + executable).path, [])
                 XCTAssertTrue(result.contains("quote' slash\\ $value\n中文"), result)
                 XCTAssertTrue(result.contains(strategy == .hard ? "/WeWork\n" : "/Original\n"), result)
+                if injection == .dylib {
+                    XCTAssertTrue(result.contains(c.dataDirectory.appendingPathComponent("Home/Library/Group Containers/TEAM.group").path + "\n"), result)
+                }
                 XCTAssertEqual(try Data(contentsOf: c.source.appendingPathComponent("Contents/MacOS/Original")), sourceBytes)
                 // A bad icon must not destroy the existing signed clone.
                 updated.customIcon = root.appendingPathComponent("missing.icns")

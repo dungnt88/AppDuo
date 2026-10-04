@@ -105,7 +105,11 @@ public func validateName(_ name: String) throws {
           name.utf8.count < 160, !name.contains(where: { $0 == "/" || $0 == ":" || $0.isNewline || $0.asciiValue == 0 }) else { throw CloneFailure.invalid("名称不能为空，不能包含 /、: 或换行，且不能过长") }
 }
 public enum Assets {
-    public static let root = Bundle.module.url(forResource: "Resources", withExtension: nil)!
+    // Older SwiftPM accessors skip Contents/Resources inside a .app and fatalError on other machines.
+    public static let root: URL = {
+        let packaged = Bundle.main.resourceURL.flatMap { Bundle(url: $0.appendingPathComponent("AppDuo_CloneCore.bundle")) }
+        return (packaged ?? Bundle.module).url(forResource: "Resources", withExtension: nil)!
+    }()
     public static let icon = root.appendingPathComponent("AppIcon.icns")
 }
 public let supportedLanguages = ["system", "zh-Hans", "zh-Hant", "en", "ja", "ko", "de", "fr", "es", "ru"]
